@@ -1,0 +1,9 @@
+{
+  "name": "ARC Recovery",
+  "short_name": "ARC Recovery",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f2f24",
+  "theme_color": "#0f2f24",
+  "icons": []
+}
