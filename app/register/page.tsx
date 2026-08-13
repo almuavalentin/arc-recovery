@@ -8,8 +8,8 @@ import { hashPin, saveSession } from "@/lib/auth";
 
 export default function RegisterPage() {
   const router = useRouter();
+  const [dni, setDni] = useState("");
   const [nombre, setNombre] = useState("");
-  const [posicion, setPosicion] = useState("");
   const [pin, setPin] = useState("");
   const [pin2, setPin2] = useState("");
   const [error, setError] = useState("");
@@ -19,6 +19,10 @@ export default function RegisterPage() {
     e.preventDefault();
     setError("");
 
+    if (dni.trim().length < 7) {
+      setError("Ingresá un DNI válido.");
+      return;
+    }
     if (pin.length !== 4) {
       setError("El PIN debe tener 4 dígitos.");
       return;
@@ -34,18 +38,18 @@ export default function RegisterPage() {
     const { data: existing } = await supabase
       .from("users")
       .select("id")
-      .ilike("nombre", nombre.trim())
+      .eq("dni", dni.trim())
       .maybeSingle();
 
     if (existing) {
       setLoading(false);
-      setError("Ya existe un usuario con ese nombre. Iniciá sesión o usá otro nombre.");
+      setError("Ya existe un usuario con ese DNI. Iniciá sesión en vez de registrarte.");
       return;
     }
 
     const { data, error: dbError } = await supabase
       .from("users")
-      .insert({ nombre: nombre.trim(), posicion, pin_hash: pinHash, rol: "jugador" })
+      .insert({ dni: dni.trim(), nombre: nombre.trim(), pin_hash: pinHash, rol: "jugador" })
       .select("id, nombre, rol")
       .single();
 
@@ -69,21 +73,23 @@ export default function RegisterPage() {
         className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-lg space-y-4"
       >
         <div>
+          <label className="block text-sm font-medium mb-1">DNI</label>
+          <input
+            className="w-full border rounded-lg px-3 py-2"
+            value={dni}
+            onChange={(e) => setDni(e.target.value.replace(/\D/g, ""))}
+            inputMode="numeric"
+            placeholder="Sin puntos, ej: 40123456"
+            required
+          />
+        </div>
+        <div>
           <label className="block text-sm font-medium mb-1">Nombre y apellido</label>
           <input
             className="w-full border rounded-lg px-3 py-2"
             value={nombre}
             onChange={(e) => setNombre(e.target.value)}
             required
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium mb-1">Posición (opcional)</label>
-          <input
-            className="w-full border rounded-lg px-3 py-2"
-            value={posicion}
-            onChange={(e) => setPosicion(e.target.value)}
-            placeholder="Ej: Pilar, Apertura..."
           />
         </div>
         <div>

@@ -3,7 +3,7 @@
   "short_name": "ARC Recovery",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0f2f24",
-  "theme_color": "#0f2f24",
-  "icons": []
+  "background_color": "#161616",
+  "theme_color": "#161616",
+  "icons": [{ "src": "/logo.png", "sizes": "447x447", "type": "image/png" }]
 }

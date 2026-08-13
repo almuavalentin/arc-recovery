@@ -114,9 +114,12 @@ export default function PlayerPage() {
   return (
     <div className="min-h-screen bg-gray-50 px-4 py-6 max-w-lg mx-auto">
       <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-xl font-bold text-arc">ARC Recovery</h1>
-          <p className="text-sm text-gray-500">Hola, {user.nombre}</p>
+        <div className="flex items-center gap-2">
+          <img src="/logo.png" alt="" className="w-9 h-9 rounded-full" />
+          <div>
+            <h1 className="text-xl font-bold text-arc">ARC Recovery</h1>
+            <p className="text-sm text-gray-500">Hola, {user.nombre}</p>
+          </div>
         </div>
         <button onClick={logout} className="text-sm text-gray-400">
           Salir

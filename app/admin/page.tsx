@@ -6,7 +6,7 @@ import { supabase } from "@/lib/supabase";
 import { clearSession, getSession, SessionUser } from "@/lib/auth";
 import { calcularHoraFin, generarMensaje } from "@/lib/schedule";
 
-type Player = { id: string; nombre: string; posicion: string | null };
+type Player = { id: string; nombre: string; dni: string };
 
 export default function AdminPage() {
   const router = useRouter();
@@ -38,7 +38,7 @@ export default function AdminPage() {
   async function cargarDatos() {
     const { data: jugadores } = await supabase
       .from("users")
-      .select("id, nombre, posicion")
+      .select("id, nombre, dni")
       .eq("rol", "jugador")
       .eq("activo", true)
       .order("nombre");
@@ -59,8 +59,9 @@ export default function AdminPage() {
   }
 
   const jugadoresOrdenados = useMemo(() => {
-    const filtrados = players.filter((p) =>
-      p.nombre.toLowerCase().includes(busqueda.toLowerCase())
+    const q = busqueda.toLowerCase();
+    const filtrados = players.filter(
+      (p) => p.nombre.toLowerCase().includes(q) || p.dni.includes(busqueda)
     );
     return filtrados.sort((a, b) => {
       const aPrio = prioridadIds.has(a.id) ? 0 : 1;
@@ -147,7 +148,10 @@ export default function AdminPage() {
   return (
     <div className="min-h-screen bg-gray-50 px-4 py-6 max-w-lg mx-auto">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-xl font-bold text-arc">ARC Recovery · Admin</h1>
+        <div className="flex items-center gap-2">
+          <img src="/logo.png" alt="" className="w-9 h-9 rounded-full" />
+          <h1 className="text-xl font-bold text-arc">ARC Recovery · Admin</h1>
+        </div>
         <button onClick={logout} className="text-sm text-gray-400">
           Salir
         </button>
@@ -214,7 +218,7 @@ export default function AdminPage() {
           <label className="block text-sm font-medium mb-1">Buscar jugador</label>
           <input
             className="w-full border rounded-lg px-3 py-2 mb-2"
-            placeholder="Filtrar por nombre..."
+            placeholder="Filtrar por nombre o DNI..."
             value={busqueda}
             onChange={(e) => setBusqueda(e.target.value)}
           />
@@ -228,7 +232,7 @@ export default function AdminPage() {
                     onChange={() => toggleJugador(p.id)}
                   />
                   {p.nombre}
-                  {p.posicion && <span className="text-gray-400 text-xs">({p.posicion})</span>}
+                  <span className="text-gray-400 text-xs">DNI {p.dni}</span>
                 </span>
                 {prioridadIds.has(p.id) && (
                   <span className="text-xs bg-arc-accent/20 text-arc-accent font-medium px-2 py-0.5 rounded-full">

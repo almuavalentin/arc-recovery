@@ -8,7 +8,7 @@ import { hashPin, saveSession } from "@/lib/auth";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [nombre, setNombre] = useState("");
+  const [dni, setDni] = useState("");
   const [pin, setPin] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -22,7 +22,7 @@ export default function LoginPage() {
     const { data, error: dbError } = await supabase
       .from("users")
       .select("id, nombre, rol, pin_hash, activo")
-      .ilike("nombre", nombre.trim())
+      .eq("dni", dni.trim())
       .maybeSingle();
 
     setLoading(false);
@@ -46,6 +46,7 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen bg-arc flex flex-col items-center justify-center px-6">
+      <img src="/logo.png" alt="ARC Recovery" className="w-24 h-24 mb-4 rounded-full bg-white p-2" />
       <h1 className="text-3xl font-bold text-white mb-1">ARC Recovery</h1>
       <p className="text-arc-accent mb-8 text-sm">Sala de recuperación del equipo</p>
 
@@ -54,12 +55,13 @@ export default function LoginPage() {
         className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-lg space-y-4"
       >
         <div>
-          <label className="block text-sm font-medium mb-1">Nombre</label>
+          <label className="block text-sm font-medium mb-1">DNI</label>
           <input
             className="w-full border rounded-lg px-3 py-2"
-            value={nombre}
-            onChange={(e) => setNombre(e.target.value)}
-            placeholder="Tu nombre y apellido"
+            value={dni}
+            onChange={(e) => setDni(e.target.value.replace(/\D/g, ""))}
+            inputMode="numeric"
+            placeholder="Sin puntos, ej: 40123456"
             required
           />
         </div>
