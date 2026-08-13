@@ -83,3 +83,23 @@ ${params.jugadores.map((n) => `• ${n}`).join("\n")}
 
 Cualquier duda, hablá con el kinesiólogo.`;
 }
+
+// Mensaje final con la lista completa de horarios ya confirmados,
+// ordenados cronológicamente, para reenviar una vez que todos eligieron.
+export function generarMensajeFinal(params: {
+  fecha: string;
+  jugadores: { nombre: string; hora: string }[];
+}): string {
+  const [y, m, d] = params.fecha.split("-");
+  const fechaLegible = `${d}/${m}/${y}`;
+
+  const ordenados = [...params.jugadores].sort((a, b) => a.hora.localeCompare(b.hora));
+
+  return `🏉 ARC Recovery - Horarios confirmados
+
+📅 Fecha: ${fechaLegible}
+
+${ordenados.map((j) => `• ${j.hora} - ${j.nombre}`).join("\n")}
+
+¡Nos vemos en la sala!`;
+}
