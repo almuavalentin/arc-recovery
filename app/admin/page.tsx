@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { clearSession, getSession, SessionUser } from "@/lib/auth";
-import { calcularHoraFin, generarMensaje } from "@/lib/schedule";
+import { calcularHoraFin, generarMensaje, formatFecha, formatHora } from "@/lib/schedule";
 
 type Player = { id: string; nombre: string; dni: string };
 
@@ -24,6 +24,7 @@ export default function AdminPage() {
   const [busqueda, setBusqueda] = useState("");
   const [creando, setCreando] = useState(false);
   const [sesionesAbiertas, setSesionesAbiertas] = useState<any[]>([]);
+  const [solicitudesPendientes, setSolicitudesPendientes] = useState<any[]>([]);
 
   useEffect(() => {
     const u = getSession();
@@ -46,9 +47,12 @@ export default function AdminPage() {
 
     const { data: pendientes } = await supabase
       .from("recovery_requests")
-      .select("user_id")
-      .eq("estado", "pendiente");
+      .select("id, user_id, comentario, created_at, users(nombre)")
+      .eq("estado", "pendiente")
+      .order("created_at", { ascending: false });
+
     setPrioridadIds(new Set((pendientes || []).map((p) => p.user_id)));
+    setSolicitudesPendientes(pendientes || []);
 
     const { data: abiertas } = await supabase
       .from("sessions")
@@ -157,6 +161,21 @@ export default function AdminPage() {
         </button>
       </div>
 
+      {solicitudesPendientes.length > 0 && (
+        <div className="bg-white rounded-2xl p-4 shadow mb-6">
+          <p className="font-semibold mb-2 text-sm">Solicitudes de recovery pendientes</p>
+          <div className="space-y-3">
+            {solicitudesPendientes.map((s) => (
+              <div key={s.id} className="border-b pb-2 last:border-b-0">
+                <p className="text-sm font-medium">{s.users?.nombre}</p>
+                {s.comentario && <p className="text-sm text-gray-600">{s.comentario}</p>}
+                <p className="text-xs text-gray-400">{formatFecha(s.created_at.slice(0, 10))}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {sesionesAbiertas.length > 0 && (
         <div className="bg-white rounded-2xl p-4 shadow mb-6">
           <p className="font-semibold mb-2 text-sm">Sesiones abiertas</p>
@@ -166,7 +185,7 @@ export default function AdminPage() {
               onClick={() => router.push(`/admin/session/${s.id}`)}
               className="block w-full text-left text-sm py-1 text-arc"
             >
-              {s.fecha} · {s.hora_inicio}-{s.hora_fin} →
+              {formatFecha(s.fecha)} · {formatHora(s.hora_inicio)}-{formatHora(s.hora_fin)} →
             </button>
           ))}
         </div>

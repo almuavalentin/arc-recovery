@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { clearSession, getSession, SessionUser } from "@/lib/auth";
-import { horariosDisponibles, slotToTime } from "@/lib/schedule";
+import { horariosDisponibles, slotToTime, formatFecha, formatHora } from "@/lib/schedule";
 
 type SessionRow = {
   id: string;
@@ -229,7 +229,7 @@ export default function PlayerPage() {
           return (
             <div key={session.id} className="bg-white rounded-2xl p-5 shadow">
               <p className="font-medium">
-                {session.fecha} · {session.hora_inicio} a {session.hora_fin}
+                {formatFecha(session.fecha)} · {formatHora(session.hora_inicio)} a {formatHora(session.hora_fin)}
               </p>
               <p className="text-sm text-gray-500 mb-3">
                 {[

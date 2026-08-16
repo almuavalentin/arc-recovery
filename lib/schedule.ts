@@ -111,3 +111,14 @@ ${ordenados.map((j) => `• ${j.hora} - ${j.nombre}`).join("\n")}
 
 ¡Nos vemos en la sala!`;
 }
+
+// Formatea fecha ISO (YYYY-MM-DD, tal como la guarda Postgres) a DD-MM-YYYY
+export function formatFecha(fecha: string): string {
+  const [y, m, d] = fecha.split("-");
+  return `${d}-${m}-${y}`;
+}
+
+// Postgres devuelve las columnas `time` como "HH:MM:SS" — recortamos los segundos
+export function formatHora(hora: string): string {
+  return hora.slice(0, 5);
+}

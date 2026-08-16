@@ -222,8 +222,8 @@ export default function SessionDetailPage() {
         </div>
       )}
 
-      <button onClick={cerrarSesion} className="w-full border border-gray-300 rounded-lg py-2 text-sm text-gray-600">
-        Cerrar sesión
+      <button onClick={cerrarSesion} className="w-full border border-red-300 rounded-lg py-2 text-sm text-red-600">
+        Cancelar sesión
       </button>
     </div>
   );
