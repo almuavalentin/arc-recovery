@@ -33,17 +33,25 @@ export function calcularHoraFin(horaInicio: string, cantidadJugadores: number): 
 }
 
 // Genera la lista de horarios disponibles para que un jugador elija,
-// excluyendo los que ya fueron tomados.
+// excluyendo los ya tomados y los que no entrarían completos antes
+// del cierre de la sala (hora_fin). El circuito dura 15 min, así que
+// el último horario habilitado es: hora_fin - 15 min.
 export function horariosDisponibles(
   horaInicio: string,
-  totalJugadores: number,
+  horaFin: string,
   slotsOcupados: number[]
 ): { slotIndex: number; hora: string }[] {
-  const disponibles = [];
-  for (let i = 0; i < totalJugadores; i++) {
+  const disponibles: { slotIndex: number; hora: string }[] = [];
+  const limiteInicioMinutos = timeToMinutes(horaFin) - CIRCUIT_MINUTES;
+
+  let i = 0;
+  while (true) {
+    const inicioMinutos = timeToMinutes(horaInicio) + i * SLOT_MINUTES;
+    if (inicioMinutos > limiteInicioMinutos) break;
     if (!slotsOcupados.includes(i)) {
-      disponibles.push({ slotIndex: i, hora: slotToTime(horaInicio, i) });
+      disponibles.push({ slotIndex: i, hora: minutesToTime(inicioMinutos) });
     }
+    i++;
   }
   return disponibles;
 }

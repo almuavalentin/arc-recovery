@@ -24,6 +24,7 @@ type SessionPlayerRow = {
   slot_index: number | null;
   hora_asignada: string | null;
   confirmado: boolean;
+  no_asiste: boolean;
   users?: { nombre: string } | null;
 };
 
@@ -53,8 +54,8 @@ export default function PlayerPage() {
     cargarSesiones(u.id);
   }, [router]);
 
-  // Realtime: cuando cualquier jugador elige o cambia su horario, refrescamos
-  // la lista para que todos vean los picks del grupo sin recargar la página.
+  // Realtime: cuando cualquier jugador elige, cambia o avisa que no asiste,
+  // refrescamos para que todos vean el estado del grupo sin recargar.
   useEffect(() => {
     if (!user) return;
     const channel = supabase
@@ -90,11 +91,13 @@ export default function PlayerPage() {
 
     if (!sesiones) return;
 
-    const result = [];
+    const result: MiSesionRow[] = [];
     for (const s of sesiones) {
       const { data: todos } = await supabase
         .from("session_players")
-        .select("id, session_id, user_id, slot_index, hora_asignada, confirmado, users(nombre)")
+        .select(
+          "id, session_id, user_id, slot_index, hora_asignada, confirmado, no_asiste, users(nombre)"
+        )
         .eq("session_id", s.id);
 
       const convocados = (todos || []) as unknown as SessionPlayerRow[];
@@ -131,9 +134,6 @@ export default function PlayerPage() {
 
     const hora = slotToTime(horaInicio, slotIndex);
 
-    // El filtro .is("slot_index", null) evita pisar tu propia elección si
-    // llegaran a dispararse dos clicks. La unicidad entre DISTINTOS
-    // jugadores la garantiza el índice único de la base (session_id, slot_index).
     const { error } = await supabase
       .from("session_players")
       .update({ slot_index: slotIndex, hora_asignada: hora, confirmado: true })
@@ -147,6 +147,20 @@ export default function PlayerPage() {
           : "No se pudo guardar tu horario. Intentá de nuevo.";
       setErrores((prev) => ({ ...prev, [sessionId]: msg }));
     }
+    cargarSesiones(user.id);
+  }
+
+  async function noPuedoAsistir(sessionPlayerId: string) {
+    if (!user) return;
+    if (!confirm("¿Confirmás que no podés asistir a esta sesión? Vas a liberar tu horario si ya habías elegido uno.")) {
+      return;
+    }
+    // Se libera el horario automáticamente. Una vez marcado, solo el
+    // kinesiólogo puede revertirlo (readmitir) desde el panel de admin.
+    await supabase
+      .from("session_players")
+      .update({ no_asiste: true, slot_index: null, hora_asignada: null, confirmado: false })
+      .eq("id", sessionPlayerId);
     cargarSesiones(user.id);
   }
 
@@ -227,22 +241,37 @@ export default function PlayerPage() {
                   .join(" · ")}
               </p>
 
-              {miConvocatoria.confirmado ? (
-                <p className="text-sm bg-green-50 text-green-700 rounded-lg px-3 py-2 mb-3">
-                  Tu horario: <b>{miConvocatoria.hora_asignada}</b>
+              {miConvocatoria.no_asiste ? (
+                <p className="text-sm bg-gray-100 text-gray-500 rounded-lg px-3 py-2 mb-3">
+                  Avisaste que no podés asistir a esta sesión.
                 </p>
               ) : (
                 <div className="mb-3">
-                  <SelectorHorario
-                    horaInicio={session.hora_inicio}
-                    ocupados={ocupados}
-                    onElegir={(slot) =>
-                      elegirHorario(miConvocatoria.id, slot, session.hora_inicio, session.id)
-                    }
-                  />
-                  {errores[session.id] && (
-                    <p className="text-red-600 text-sm mt-2">{errores[session.id]}</p>
+                  {miConvocatoria.confirmado ? (
+                    <p className="text-sm bg-green-50 text-green-700 rounded-lg px-3 py-2 mb-2">
+                      Tu horario: <b>{miConvocatoria.hora_asignada}</b>
+                    </p>
+                  ) : (
+                    <>
+                      <SelectorHorario
+                        horaInicio={session.hora_inicio}
+                        horaFin={session.hora_fin}
+                        ocupados={ocupados}
+                        onElegir={(slot) =>
+                          elegirHorario(miConvocatoria.id, slot, session.hora_inicio, session.id)
+                        }
+                      />
+                      {errores[session.id] && (
+                        <p className="text-red-600 text-sm mt-2">{errores[session.id]}</p>
+                      )}
+                    </>
                   )}
+                  <button
+                    onClick={() => noPuedoAsistir(miConvocatoria.id)}
+                    className="text-sm text-red-500 underline mt-2"
+                  >
+                    No puedo asistir
+                  </button>
                 </div>
               )}
 
@@ -259,9 +288,13 @@ export default function PlayerPage() {
                       }`}
                     >
                       <span>{c.users?.nombre}</span>
-                      <span className={c.confirmado ? "text-green-600" : "text-gray-400"}>
-                        {c.confirmado ? c.hora_asignada : "Sin elegir"}
-                      </span>
+                      {c.no_asiste ? (
+                        <span className="text-red-400">No asiste</span>
+                      ) : (
+                        <span className={c.confirmado ? "text-green-600" : "text-gray-400"}>
+                          {c.confirmado ? c.hora_asignada : "Sin elegir"}
+                        </span>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -276,31 +309,37 @@ export default function PlayerPage() {
 
 function SelectorHorario({
   horaInicio,
+  horaFin,
   ocupados,
   onElegir
 }: {
   horaInicio: string;
+  horaFin: string;
   ocupados: number[];
   onElegir: (slot: number) => void;
 }) {
-  // Rango razonable de slots a mostrar: ocupados + 6 posiciones más para elegir
-  const maxSlot = Math.max(6, ...ocupados.map((o) => o + 3));
-  const opciones = horariosDisponibles(horaInicio, maxSlot, ocupados);
+  const opciones = horariosDisponibles(horaInicio, horaFin, ocupados);
 
   return (
     <div>
       <p className="text-sm text-gray-600 mb-2">Elegí tu horario:</p>
-      <div className="grid grid-cols-3 gap-2">
-        {opciones.slice(0, 6).map((op) => (
-          <button
-            key={op.slotIndex}
-            onClick={() => onElegir(op.slotIndex)}
-            className="border border-arc text-arc rounded-lg py-2 text-sm font-medium"
-          >
-            {op.hora}
-          </button>
-        ))}
-      </div>
+      {opciones.length === 0 ? (
+        <p className="text-sm text-gray-400">
+          No quedan horarios disponibles dentro del rango de la sesión.
+        </p>
+      ) : (
+        <div className="grid grid-cols-3 gap-2">
+          {opciones.slice(0, 6).map((op) => (
+            <button
+              key={op.slotIndex}
+              onClick={() => onElegir(op.slotIndex)}
+              className="border border-arc text-arc rounded-lg py-2 text-sm font-medium"
+            >
+              {op.hora}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
