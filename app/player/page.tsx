@@ -329,7 +329,7 @@ function SelectorHorario({
         </p>
       ) : (
         <div className="grid grid-cols-3 gap-2">
-          {opciones.slice(0, 6).map((op) => (
+          {opciones.map((op) => (
             <button
               key={op.slotIndex}
               onClick={() => onElegir(op.slotIndex)}
