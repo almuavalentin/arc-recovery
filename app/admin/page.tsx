@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { clearSession, getSession, SessionUser } from "@/lib/auth";
-import { calcularHoraFin, generarMensaje, formatFecha, formatHora } from "@/lib/schedule";
+import { generarMensaje, capacidadMaxima, formatFecha, formatHora } from "@/lib/schedule";
 
 type Player = { id: string; nombre: string; dni: string };
 
@@ -14,6 +14,7 @@ export default function AdminPage() {
 
   const [fecha, setFecha] = useState("");
   const [horaInicio, setHoraInicio] = useState("");
+  const [horaFin, setHoraFin] = useState("");
   const [hielo, setHielo] = useState(true);
   const [sauna, setSauna] = useState(true);
   const [botas, setBotas] = useState(true);
@@ -62,6 +63,13 @@ export default function AdminPage() {
     setSesionesAbiertas(abiertas || []);
   }
 
+  // Capacidad de la ventana elegida por el admin. Null si todavía no
+  // completó ambos horarios.
+  const capacidad = useMemo(() => {
+    if (!horaInicio || !horaFin) return null;
+    return capacidadMaxima(horaInicio, horaFin);
+  }, [horaInicio, horaFin]);
+
   const jugadoresOrdenados = useMemo(() => {
     const q = busqueda.toLowerCase();
     const filtrados = players.filter(
@@ -78,18 +86,27 @@ export default function AdminPage() {
   function toggleJugador(id: string) {
     setSelectedIds((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      if (next.has(id)) {
+        next.delete(id);
+        return next;
+      }
+      if (capacidad !== null && next.size >= capacidad) {
+        alert(
+          `La ventana de ${horaInicio || "?"} a ${horaFin || "?"} solo permite ${capacidad} jugador(es). Ampliá el horario o quitá a alguien de la lista.`
+        );
+        return prev;
+      }
+      next.add(id);
       return next;
     });
   }
 
   async function crearSesion() {
-    if (!user || !fecha || !horaInicio || selectedIds.size === 0) return;
+    if (!user || !fecha || !horaInicio || !horaFin || selectedIds.size === 0) return;
+    if (capacidad !== null && selectedIds.size > capacidad) return;
     setCreando(true);
 
     const seleccionados = players.filter((p) => selectedIds.has(p.id));
-    const horaFin = calcularHoraFin(horaInicio, seleccionados.length);
 
     const mensaje = generarMensaje({
       fecha,
@@ -128,7 +145,6 @@ export default function AdminPage() {
     }));
     await supabase.from("session_players").insert(rows);
 
-    // marcar como atendidas las solicitudes de los seleccionados con prioridad
     const idsConPrioridad = seleccionados.filter((p) => prioridadIds.has(p.id)).map((p) => p.id);
     if (idsConPrioridad.length > 0) {
       await supabase
@@ -148,6 +164,8 @@ export default function AdminPage() {
   }
 
   if (!user) return null;
+
+  const ventanaInvalida = capacidad !== null && capacidad === 0;
 
   return (
     <div className="min-h-screen bg-gray-50 px-4 py-6 max-w-lg mx-auto">
@@ -194,16 +212,17 @@ export default function AdminPage() {
       <div className="bg-white rounded-2xl p-5 shadow mb-6 space-y-4">
         <h2 className="font-semibold">Nueva sesión</h2>
 
+        <div>
+          <label className="block text-sm font-medium mb-1">Fecha</label>
+          <input
+            type="date"
+            className="w-full border rounded-lg px-3 py-2"
+            value={fecha}
+            onChange={(e) => setFecha(e.target.value)}
+          />
+        </div>
+
         <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-sm font-medium mb-1">Fecha</label>
-            <input
-              type="date"
-              className="w-full border rounded-lg px-3 py-2"
-              value={fecha}
-              onChange={(e) => setFecha(e.target.value)}
-            />
-          </div>
           <div>
             <label className="block text-sm font-medium mb-1">Hora inicio</label>
             <input
@@ -213,7 +232,24 @@ export default function AdminPage() {
               onChange={(e) => setHoraInicio(e.target.value)}
             />
           </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Hora fin</label>
+            <input
+              type="time"
+              className="w-full border rounded-lg px-3 py-2"
+              value={horaFin}
+              onChange={(e) => setHoraFin(e.target.value)}
+            />
+          </div>
         </div>
+
+        {capacidad !== null && (
+          <p className={`text-xs ${ventanaInvalida ? "text-red-600" : "text-gray-500"}`}>
+            {ventanaInvalida
+              ? "La ventana elegida es muy corta: no alcanza ni para un circuito completo (15 min)."
+              : `Esta ventana permite hasta ${capacidad} jugador(es).`}
+          </p>
+        )}
 
         <div>
           <label className="block text-sm font-medium mb-2">Material disponible</label>
@@ -264,12 +300,14 @@ export default function AdminPage() {
               <p className="px-3 py-2 text-sm text-gray-400">Sin resultados.</p>
             )}
           </div>
-          <p className="text-xs text-gray-400 mt-1">{selectedIds.size} jugador(es) seleccionado(s)</p>
+          <p className="text-xs text-gray-400 mt-1">
+            {selectedIds.size}{capacidad !== null ? ` / ${capacidad}` : ""} jugador(es) seleccionado(s)
+          </p>
         </div>
 
         <button
           onClick={crearSesion}
-          disabled={creando || !fecha || !horaInicio || selectedIds.size === 0}
+          disabled={creando || !fecha || !horaInicio || !horaFin || selectedIds.size === 0 || ventanaInvalida}
           className="w-full bg-arc text-white rounded-lg py-2 font-medium disabled:opacity-50"
         >
           {creando ? "Creando..." : "Crear sesión y generar mensaje"}

@@ -122,3 +122,11 @@ export function formatFecha(fecha: string): string {
 export function formatHora(hora: string): string {
   return hora.slice(0, 5);
 }
+
+// Calcula cuántos jugadores entran en una ventana fija de horario,
+// completando cada uno el circuito completo (15 min) antes de hora_fin.
+export function capacidadMaxima(horaInicio: string, horaFin: string): number {
+  const diff = timeToMinutes(horaFin) - timeToMinutes(horaInicio);
+  if (diff < CIRCUIT_MINUTES) return 0;
+  return Math.floor((diff - CIRCUIT_MINUTES) / SLOT_MINUTES) + 1;
+}

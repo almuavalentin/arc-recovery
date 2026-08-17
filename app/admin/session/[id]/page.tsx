@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { getSession } from "@/lib/auth";
-import { generarMensajeFinal, calcularHoraFin, formatFecha, formatHora } from "@/lib/schedule";
+import { generarMensajeFinal, capacidadMaxima, formatFecha, formatHora } from "@/lib/schedule";
 
 type Player = { id: string; nombre: string; dni: string };
 
@@ -27,8 +27,6 @@ export default function SessionDetailPage() {
     cargar();
   }, [id]);
 
-  // Realtime: ver en vivo cómo los jugadores van eligiendo su horario o
-  // avisando que no asisten.
   useEffect(() => {
     const channel = supabase
       .channel(`session_players_admin_${id}`)
@@ -64,40 +62,42 @@ export default function SessionDetailPage() {
     setJugadoresDisponibles((todos || []).filter((p) => !idsEnSesion.has(p.id)));
   }
 
-  // Recalcula hora_fin de la sesión según la cantidad de jugadores ACTIVOS
-  // (no cuenta a quienes avisaron que no asisten). Se llama cada vez que
-  // cambia la convocatoria: agregar, quitar o readmitir a alguien.
-  async function actualizarHoraFin() {
-    const { data: s } = await supabase.from("sessions").select("hora_inicio").eq("id", id).single();
-    if (!s) return;
+  // Capacidad fija de la ventana de la sesión (hora_inicio a hora_fin).
+  // La ventana ya no se recalcula sola: la definió el admin al crearla.
+  function capacidad(): number {
+    if (!sesion) return 0;
+    return capacidadMaxima(sesion.hora_inicio, sesion.hora_fin);
+  }
 
-    const { data: activos } = await supabase
-      .from("session_players")
-      .select("id")
-      .eq("session_id", id)
-      .eq("no_asiste", false);
-
-    const cantidad = activos?.length ?? 0;
-    const nuevaHoraFin = calcularHoraFin(s.hora_inicio, cantidad);
-    await supabase.from("sessions").update({ hora_fin: nuevaHoraFin }).eq("id", id);
+  function activosCount(): number {
+    return jugadores.filter((j) => !j.no_asiste).length;
   }
 
   async function agregarJugador(userId: string) {
+    if (activosCount() >= capacidad()) {
+      alert(
+        `Esta sesión ya está al límite de su ventana (${formatHora(sesion.hora_inicio)} a ${formatHora(sesion.hora_fin)}): máximo ${capacidad()} jugador(es). Para sumar a alguien más, ampliá el horario de la sesión o quitá a otro jugador primero.`
+      );
+      return;
+    }
     await supabase.from("session_players").insert({ session_id: id, user_id: userId });
-    await actualizarHoraFin();
     cargar();
   }
 
   async function quitarJugador(sessionPlayerId: string, nombre: string) {
     if (!confirm(`¿Seguro que querés quitar a ${nombre} de esta sesión?`)) return;
     await supabase.from("session_players").delete().eq("id", sessionPlayerId);
-    await actualizarHoraFin();
     cargar();
   }
 
   async function readmitirJugador(sessionPlayerId: string) {
+    if (activosCount() >= capacidad()) {
+      alert(
+        `No hay lugar para readmitir: la ventana de esta sesión permite máximo ${capacidad()} jugador(es) activos.`
+      );
+      return;
+    }
     await supabase.from("session_players").update({ no_asiste: false }).eq("id", sessionPlayerId);
-    await actualizarHoraFin();
     cargar();
   }
 
@@ -139,6 +139,8 @@ export default function SessionDetailPage() {
       p.nombre.toLowerCase().includes(busquedaAgregar.toLowerCase()) ||
       p.dni.includes(busquedaAgregar)
   );
+  const cap = capacidad();
+  const activos = activosCount();
 
   return (
     <div className="min-h-screen bg-gray-50 px-4 py-6 max-w-lg mx-auto">
@@ -204,7 +206,10 @@ export default function SessionDetailPage() {
       </div>
 
       <div className="bg-white rounded-2xl p-5 shadow mb-6">
-        <h2 className="font-semibold mb-3">Agregar jugador a esta sesión</h2>
+        <h2 className="font-semibold mb-1">Agregar jugador a esta sesión</h2>
+        <p className="text-xs text-gray-400 mb-3">
+          {activos} / {cap} jugador(es) activos según la ventana de la sesión
+        </p>
         <input
           className="w-full border rounded-lg px-3 py-2 mb-2"
           placeholder="Filtrar por nombre o DNI..."
