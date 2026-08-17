@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { getSession } from "@/lib/auth";
-import { generarMensajeFinal } from "@/lib/schedule";
+import { generarMensajeFinal, calcularHoraFin, formatFecha, formatHora } from "@/lib/schedule";
 
 type Player = { id: string; nombre: string; dni: string };
 
@@ -64,19 +64,40 @@ export default function SessionDetailPage() {
     setJugadoresDisponibles((todos || []).filter((p) => !idsEnSesion.has(p.id)));
   }
 
+  // Recalcula hora_fin de la sesión según la cantidad de jugadores ACTIVOS
+  // (no cuenta a quienes avisaron que no asisten). Se llama cada vez que
+  // cambia la convocatoria: agregar, quitar o readmitir a alguien.
+  async function actualizarHoraFin() {
+    const { data: s } = await supabase.from("sessions").select("hora_inicio").eq("id", id).single();
+    if (!s) return;
+
+    const { data: activos } = await supabase
+      .from("session_players")
+      .select("id")
+      .eq("session_id", id)
+      .eq("no_asiste", false);
+
+    const cantidad = activos?.length ?? 0;
+    const nuevaHoraFin = calcularHoraFin(s.hora_inicio, cantidad);
+    await supabase.from("sessions").update({ hora_fin: nuevaHoraFin }).eq("id", id);
+  }
+
   async function agregarJugador(userId: string) {
     await supabase.from("session_players").insert({ session_id: id, user_id: userId });
+    await actualizarHoraFin();
     cargar();
   }
 
   async function quitarJugador(sessionPlayerId: string, nombre: string) {
     if (!confirm(`¿Seguro que querés quitar a ${nombre} de esta sesión?`)) return;
     await supabase.from("session_players").delete().eq("id", sessionPlayerId);
+    await actualizarHoraFin();
     cargar();
   }
 
   async function readmitirJugador(sessionPlayerId: string) {
     await supabase.from("session_players").update({ no_asiste: false }).eq("id", sessionPlayerId);
+    await actualizarHoraFin();
     cargar();
   }
 
@@ -126,6 +147,9 @@ export default function SessionDetailPage() {
       </button>
 
       <div className="bg-white rounded-2xl p-5 shadow mb-6">
+        <p className="font-medium mb-2">
+          {formatFecha(sesion.fecha)} · {formatHora(sesion.hora_inicio)} a {formatHora(sesion.hora_fin)}
+        </p>
         <h2 className="font-semibold mb-2">Mensaje para reenviar</h2>
         <pre className="whitespace-pre-wrap text-sm bg-gray-50 rounded-lg p-3 border">
           {sesion.mensaje}
@@ -160,7 +184,7 @@ export default function SessionDetailPage() {
                   </>
                 ) : (
                   <span className={j.confirmado ? "text-green-600 font-medium" : "text-gray-400"}>
-                    {j.confirmado ? j.hora_asignada : "Sin elegir"}
+                    {j.confirmado ? formatHora(j.hora_asignada) : "Sin elegir"}
                   </span>
                 )}
                 <button
@@ -222,8 +246,8 @@ export default function SessionDetailPage() {
         </div>
       )}
 
-      <button onClick={cerrarSesion} className="w-full border border-red-300 rounded-lg py-2 text-sm text-red-600">
-        Cancelar sesión
+      <button onClick={cerrarSesion} className="w-full border border-gray-300 rounded-lg py-2 text-sm text-gray-600">
+        Cerrar sesión
       </button>
     </div>
   );
